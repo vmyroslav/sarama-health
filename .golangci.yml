@@ -1,0 +1,101 @@
+run:
+  go: '1.22'
+  timeout: 5m
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+  govet:
+    enable:
+      - fieldalignment
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  misspell:
+    locale: US
+  lll:
+    line-length: 140
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental
+      - opinionated
+
+linters:
+  disable-all: true
+  enable:
+    - bodyclose
+    - containedctx
+    - copyloopvar
+    - cyclop
+    - dogsled
+    - dupl
+    - errcheck
+    - errchkjson
+    - errname
+    - exhaustive
+    - exportloopref
+    - gas
+    - gci
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - gosec
+    - gosimple
+    - govet
+    - importas
+    - ineffassign
+    - interfacebloat
+    - loggercheck
+    - megacheck
+    - mirror
+    - misspell
+    - nakedret
+    - nestif
+    - noctx
+    - prealloc
+    - reassign
+    - revive
+    - sloglint
+    - staticcheck
+    - stylecheck
+    - tagliatelle
+    - tenv
+    - testifylint
+    - thelper
+    - tparallel
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+    - wrapcheck
+    - wsl
+  fast: false
+
+issues:
+  exclude-rules:
+    - text: "at least one file in a package should have a package comment"
+      linters:
+        - stylecheck
+    - text: "should have a package comment"
+      linters:
+        - revive
+    - text: "should have comment or be unexported"
+      linters:
+        - revive
+    - text: "whyNoLint"
+      linters:
+        - gocritic
+    - path: _test\.go
+      linters:
+        - gosec
+        - dupl
+        - cyclop
+        - govet
+  exclude-files:
+    - "mock_.+\\.go"
+  exclude-use-default: false
