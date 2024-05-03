@@ -3,20 +3,28 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/IBM/sarama"
-	saramahealth "github.com/vmyroslav/sarama-health"
 	"log"
 	"net/http"
+
+	"github.com/IBM/sarama"
+	saramahealth "github.com/vmyroslav/sarama-health"
+)
+
+var (
+	topics        = []string{"my-topic"}
+	brokers       = []string{"localhost:9092"}
+	consumerGroup = "my-consumer-group"
 )
 
 func main() {
+	ctx := context.Background()
+
 	config := sarama.NewConfig()
 	config.Version = sarama.V3_0_1_0
-	config.Consumer.Return.Errors = true
-	config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+	config.Consumer.Return.Errors = false
 
 	// Create a new consumer group
-	group, err := sarama.NewConsumerGroup([]string{"localhost:9092"}, "my-consumer-group", config)
+	group, err := sarama.NewConsumerGroup(brokers, consumerGroup, config)
 	if err != nil {
 		log.Panicf("Error creating consumer group: %v", err)
 	}
@@ -26,26 +34,22 @@ func main() {
 		}
 	}()
 
-	healhMonitor, err := saramahealth.NewHealthChecker(saramahealth.Config{
-		Brokers:      []string{"localhost:9092"},
-		Topics:       []string{"my-topic"},
+	healthMonitor, err := saramahealth.NewHealthChecker(saramahealth.Config{
+		Brokers:      brokers,
+		Topics:       topics,
 		SaramaConfig: config,
 	})
-
 	if err != nil {
 		log.Panicf("Error creating health monitor: %v", err)
 	}
 
 	// Consumer group handler
-	ctx := context.Background()
-	consumer := Consumer{
-		healthMonitor: healhMonitor,
-	}
+	consumer := Consumer{healthMonitor: healthMonitor}
 
 	// Consume messages
 	go func() {
 		for {
-			err := group.Consume(ctx, []string{"my-topic"}, &consumer)
+			err := group.Consume(ctx, topics, &consumer)
 			if err != nil {
 				log.Printf("Error from consumer: %v", err)
 			}
@@ -58,11 +62,12 @@ func main() {
 
 	// Start HTTP server
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		isOk, err := healhMonitor.Healthy(context.Background())
+		isOk, err := healthMonitor.Healthy(context.Background())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 		if !isOk {
 			http.Error(w, "Not OK", http.StatusServiceUnavailable)
 			return
@@ -84,7 +89,7 @@ func main() {
 // Consumer represents a Sarama consumer group consumer
 type Consumer struct {
 	ready         chan bool
-	healthMonitor *saramahealth.HealthCheckerImpl
+	healthMonitor *saramahealth.HealthChecker
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
@@ -104,21 +109,19 @@ func (consumer *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	for {
 		select {
 		case <-ctx.Done():
-			println("done")
+			fmt.Printf("session closed: %v\n", ctx.Err())
 
 			consumer.healthMonitor.Release(ctx, claim.Topic(), claim.Partition())
+
 			return nil
 		case message, ok := <-claim.Messages():
 			if !ok {
 				return nil
 			}
 
-			err := consumer.healthMonitor.Track(ctx, message)
-			if err != nil {
-				println(err.Error())
-			}
+			consumer.healthMonitor.Track(ctx, message)
 
-			if string(message.Value) == "fail" {
+			if string(message.Value) == "fail" { // Simulate a failure
 				return fmt.Errorf("error")
 			}
 
