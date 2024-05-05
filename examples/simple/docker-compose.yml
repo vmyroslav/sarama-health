@@ -3,6 +3,64 @@ version: '3.8'
 name: sarama-health-simple
 
 services:
+  consumer_1:
+    build:
+      context: ./../..
+      dockerfile: ./examples/simple/Dockerfile
+    environment:
+      SARAMA_DEMO_BROKER: kafka:29092
+      SARAMA_DEMO_TOPIC: health-check-topic
+    ports:
+      - "8083:8080"
+    depends_on:
+      - kafka
+    networks:
+      - sarama-health-simple-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+
+  consumer_2:
+    build:
+      context: ./../..
+      dockerfile: ./examples/simple/Dockerfile
+    environment:
+      SARAMA_DEMO_BROKER: kafka:29092
+      SARAMA_DEMO_TOPIC: health-check-topic
+    ports:
+      - "8084:8080"
+    depends_on:
+      - kafka
+    networks:
+      - sarama-health-simple-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+
+  consumer_3:
+    build:
+      context: ./../..
+      dockerfile: ./examples/simple/Dockerfile
+    environment:
+      SARAMA_DEMO_BROKER: kafka:29092
+      SARAMA_DEMO_TOPIC: health-check-topic
+    ports:
+      - "8085:8080"
+    depends_on:
+      - kafka
+    networks:
+      - sarama-health-simple-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+    restart: on-failure
+
   kafka:
     image: confluentinc/confluent-local:7.6.0
     hostname: broker
@@ -16,14 +74,9 @@ services:
       KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker:29093'
       KAFKA_LISTENERS: 'PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092'
       KAFKA_NUM_PARTITIONS: '${KAFKA_NUM_PARTITIONS:-3}'
-    healthcheck:
-      test: [ "CMD", "nc", "-vz", "broker", "29092" ]
-      interval: 3s
-      timeout: 5s
-      retries: 3
     networks:
-      - sarame-health-simple-network
+      - sarama-health-simple-network
 
 networks:
-  sarame-health-simple-network:
+  sarama-health-simple-network:
     driver: bridge

@@ -21,7 +21,7 @@ type State struct {
 
 type HealthChecker struct {
 	topics    []string
-	client    sarama.Client
+	client    kafkaClient
 	tracker   *tracker
 	prevState *State
 	logger    *slog.Logger
@@ -42,7 +42,7 @@ func NewHealthChecker(cfg Config) (*HealthChecker, error) {
 	}, nil
 }
 
-func (h *HealthChecker) Healthy(ctx context.Context) (bool, error) {
+func (h *HealthChecker) Healthy(_ context.Context) (bool, error) {
 	// get the latest offset for each topic
 	latestStateMap := make(map[string]map[int32]int64)
 	for _, topic := range h.topics {
@@ -64,16 +64,18 @@ func (h *HealthChecker) Healthy(ctx context.Context) (bool, error) {
 	// check if the current state equals to the latest state
 	// return true only if the current state equals to the latest state
 	// otherwise go to the next check
-	var topicRes bool
+	allMatch := true
+outer:
 	for topic := range currentState {
 		for partition := range currentState[topic] {
-			if currentState[topic][partition] == latestStateMap[topic][partition] {
-				topicRes = true
+			if currentState[topic][partition] != latestStateMap[topic][partition] {
+				allMatch = false
+				break outer
 			}
 		}
 	}
 
-	if topicRes {
+	if allMatch {
 		return true, nil // return true if the current state equals to the latest state
 	}
 
@@ -90,11 +92,15 @@ func (h *HealthChecker) Healthy(ctx context.Context) (bool, error) {
 }
 
 func (h *HealthChecker) Track(_ context.Context, msg *sarama.ConsumerMessage) {
-	h.tracker.Track(msg)
+	h.tracker.track(msg)
 }
 
 func (h *HealthChecker) Release(_ context.Context, topic string, partition int32) {
 	h.tracker.drop(topic, partition)
+}
+
+func (h *HealthChecker) SetLogger(l *slog.Logger) {
+	h.logger = l
 }
 
 func (h *HealthChecker) getLatestOffset(topic string) (map[int32]int64, error) {
@@ -114,4 +120,9 @@ func (h *HealthChecker) getLatestOffset(topic string) (map[int32]int64, error) {
 	}
 
 	return offsets, nil
+}
+
+type kafkaClient interface {
+	GetOffset(topic string, partition int32, time int64) (int64, error)
+	Partitions(topic string) ([]int32, error)
 }

@@ -15,7 +15,7 @@ func newTracker() *tracker {
 	return &tracker{topicPartitionOffsets: make(map[string]map[int32]int64)}
 }
 
-func (t *tracker) Track(m *sarama.ConsumerMessage) {
+func (t *tracker) track(m *sarama.ConsumerMessage) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
